@@ -55,8 +55,9 @@ a:focus-visible { outline: 4px solid var(--violet); outline-offset: 2px; border-
 .legend .is-paid { background: #7fe0cf; }
 .legend .is-held { background: repeating-linear-gradient(45deg, #d9d4ec 0 4px, #fff 4px 8px); }
 
-.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 12px; }
-@media (min-width: 720px) { .board { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+/* Phones: the word runs top to bottom, one letter per row, so it still reads DRAGON. */
+.board { display: grid; grid-template-columns: minmax(0, min(50vw, 240px)); justify-content: center; gap: 12px; }
+@media (min-width: 720px) { .board { grid-template-columns: repeat(6, minmax(0, 1fr)); justify-content: normal; gap: 16px 12px; } }
 .board svg { display: block; width: 100%; height: auto; overflow: visible; }
 .letter-ink { fill: var(--ink); }
 .cell { fill: var(--paper); cursor: pointer; outline: none; transition: fill 0.15s ease; }
@@ -69,6 +70,15 @@ a:focus-visible { outline: 4px solid var(--violet); outline-offset: 2px; border-
 .label { pointer-events: none; text-anchor: middle; dominant-baseline: central; fill: var(--ink); font: 21px var(--slab); }
 .label.name { font: 19px var(--hand); }
 
+.jump {
+  position: fixed; left: 16px; right: 16px; bottom: 12px; z-index: 5; min-height: 52px; padding: 8px 16px;
+  display: flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;
+  border: 3px solid var(--ink); border-radius: 12px; background: var(--pick); color: var(--ink);
+  font: 700 18px/1.2 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+.jump:hover { color: var(--ink); }
+@media (min-width: 720px) { .jump { display: none; } }
+.pay { scroll-margin-top: 16px; }
 .pay { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; padding: 24px; border: 3px solid var(--ink); border-radius: 20px; background: var(--wash); }
 .field { flex: 1 1 280px; min-width: 0; display: grid; gap: 8px; }
 .field label, .picked-note { font-weight: 700; }
@@ -155,6 +165,8 @@ input[type=file] { font: inherit; max-width: 100%; }
     </div>
     <div class="board" id="board"></div>
   </section>
+
+  <a class="jump" id="jump" href="#pay" hidden></a>
 
   <form class="pay" id="pay" novalidate>
     <div class="field">
@@ -265,6 +277,7 @@ input[type=file] { font: inherit; max-width: 100%; }
     },
   };
   let stripe = null, elements = null, cardTried = false, cardAmount = 0;
+  let payInView = true;
 
   const store = {
     get() { try { return localStorage.getItem('dragon-token'); } catch { return null; } },
@@ -375,6 +388,9 @@ input[type=file] { font: inherit; max-width: 100%; }
     }
     $('donate').textContent = state.busy ? (elements ? 'Paying…' : 'Opening checkout…') : n === 0 ? 'Pick a square to donate' : 'Donate ' + dollars(n * state.price);
     if (paid === TOTAL) $('board-hint').textContent = 'Every square is colored in. Thank you!';
+    // On a phone the pay form can be a long way below the letters, so offer a shortcut to it.
+    $('jump').hidden = adminMode || n === 0 || payInView || window.parent !== window;
+    $('jump').textContent = (n === 1 ? '1 square picked' : n + ' squares picked') + '. Go to payment';
 
     if (adminMode) {
       const id = state.adminSquare;
@@ -652,6 +668,7 @@ input[type=file] { font: inherit; max-width: 100%; }
     if (h !== lastHeight) { lastHeight = h; window.parent.postMessage({ dragonHeight: h }, '*'); }
   }
   new ResizeObserver(tellParent).observe(document.body);
+  new IntersectionObserver(([entry]) => { payInView = entry.isIntersecting; render(); }).observe($('pay'));
 
   render();
   if (document.fonts) document.fonts.ready.then(render);
