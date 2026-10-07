@@ -4,6 +4,7 @@ import { DurableObject } from "cloudflare:workers";
 const TOTAL = 37; // squares on the board; must match public/board.js
 const SESSION_SECONDS = 31 * 60; // Stripe's shortest checkout window is 30 minutes
 const HOLD_MS = 40 * 60 * 1000; // squares stay held a little longer than the checkout can live
+const CARD_HOLD_MS = 10 * 60 * 1000; // on-page card payments only hold squares while the card is charged
 
 // One Board object holds the whole fundraiser. It handles one request at a time,
 // so two people can never grab the same square.
@@ -36,7 +37,7 @@ export class Board extends DurableObject {
       .map((r) => ({ id: r.id, status: r.status, name: r.status === "paid" ? r.name : null }));
   }
 
-  hold(ids, name, token) {
+  hold(ids, name, token, ms = HOLD_MS) {
     this.expireHolds();
     const marks = ids.map(() => "?").join(",");
     const taken = this.sql
@@ -46,7 +47,7 @@ export class Board extends DurableObject {
     if (taken.length) return { ok: false, taken };
     this.sql.exec(
       `UPDATE squares SET status='held', name=?, token=?, held_until=? WHERE id IN (${marks})`,
-      name, token, Date.now() + HOLD_MS, ...ids
+      name, token, Date.now() + ms, ...ids
     );
     return { ok: true };
   }
@@ -200,6 +201,55 @@ async function checkout(request, env, home) {
   }
 }
 
+// On-page card form: hold the squares and open a payment for the donor's browser to confirm.
+async function intent(request, env) {
+  if (!env.STRIPE_SECRET_KEY) return json({ error: "Payments are not set up yet." }, 503);
+  const input = await request.json().catch(() => ({}));
+  const ids = cleanIds(input.squares);
+  if (!ids) return json({ error: "Pick at least one square." }, 400);
+  const name = cleanName(input.name) || "A friend";
+  const token = crypto.randomUUID();
+  const stub = board(env);
+
+  const held = await stub.hold(ids, name, token, CARD_HOLD_MS);
+  if (!held.ok) return json({ error: "taken", taken: held.taken }, 409);
+  try {
+    const payment = await stripe(env, "POST", "/v1/payment_intents", {
+      amount: String(ids.length * priceCents(env)),
+      currency: "usd",
+      "automatic_payment_methods[enabled]": "true",
+      description: `${env.FUNDRAISER_NAME || "Addy"}'s dragon squares ${ids.join(", ")}`,
+      "metadata[token]": token,
+      "metadata[squares]": ids.join(","),
+      "metadata[name]": name,
+    });
+    await stub.attach(token, payment.id);
+    return json({ clientSecret: payment.client_secret, token });
+  } catch (err) {
+    await stub.release(token);
+    console.error("intent failed", err.message);
+    return json({ error: "Could not start the payment. Try again in a moment." }, 502);
+  }
+}
+
+// Same job as settle(), for a payment made in the on-page card form.
+async function settleCard(env, stub, token, found) {
+  const path = `/v1/payment_intents/${found.session}`;
+  let payment = await stripe(env, "GET", path);
+  if (!["succeeded", "processing", "requires_capture"].includes(payment.status)) {
+    // Not paid: close the payment so it can't be charged later, then free the squares.
+    payment = await stripe(env, "POST", `${path}/cancel`).catch(() => stripe(env, "GET", path));
+  }
+  if (payment.status === "succeeded") {
+    const ids = squaresOf(payment);
+    await stub.pay(token, ids.length ? ids : found.ids, cleanName(payment.metadata?.name) || "A friend", payment.id);
+    return json({ status: "paid", squares: found.ids });
+  }
+  if (payment.status === "processing" || payment.status === "requires_capture") return json({ status: "pending" });
+  await stub.release(token);
+  return json({ status: "released" });
+}
+
 // Called when a donor comes back from Stripe. Asks Stripe what really happened,
 // then either colors the squares in or lets them go.
 async function settle(request, env) {
@@ -210,6 +260,7 @@ async function settle(request, env) {
   if (!found) return json({ status: "unknown" });
   if (found.paid) return json({ status: "paid", squares: found.ids });
   if (!found.session) { await stub.release(token); return json({ status: "released" }); }
+  if (found.session.startsWith("pi_")) return settleCard(env, stub, token, found);
 
   const session = await stripe(env, "GET", `/v1/checkout/sessions/${found.session}`);
   if (session.payment_status === "paid") {
@@ -228,9 +279,18 @@ async function webhook(request, env) {
   const event = await verifiedEvent(request, env.STRIPE_WEBHOOK_SECRET);
   if (!event) return json({ error: "Bad signature." }, 400);
   const session = event.data?.object || {};
-  const token = session.client_reference_id;
+  const token = session.client_reference_id || session.metadata?.token;
   if (!token) return json({ received: true });
   const stub = board(env);
+  if (event.type === "payment_intent.succeeded") {
+    const conflicts = await stub.pay(token, squaresOf(session), cleanName(session.metadata?.name) || "A friend", session.id);
+    if (conflicts.length) console.error("paid for squares that were already taken", { payment: session.id, conflicts });
+    return json({ received: true });
+  }
+  if (event.type === "payment_intent.canceled") {
+    await stub.release(token);
+    return json({ received: true });
+  }
   const paidNow = event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded";
   if (paidNow && session.payment_status === "paid") {
     const conflicts = await stub.pay(token, squaresOf(session), cleanName(session.metadata?.name) || "A friend", session.id);
@@ -274,10 +334,13 @@ export default {
           priceCents: priceCents(env),
           name: env.FUNDRAISER_NAME || "Addy",
           purpose: env.FUNDRAISER_PURPOSE || "",
+          // Public key. When set, the page shows its own card form instead of sending donors to Stripe.
+          stripeKey: env.STRIPE_PUBLISHABLE_KEY || "",
         });
       }
       if (request.method === "POST") {
         if (pathname === "/api/checkout") return await checkout(request, env, home);
+        if (pathname === "/api/intent") return await intent(request, env);
         if (pathname === "/api/settle") return await settle(request, env);
         if (pathname === "/api/stripe-webhook") return await webhook(request, env);
         if (pathname === "/api/admin") return await admin(request, env);

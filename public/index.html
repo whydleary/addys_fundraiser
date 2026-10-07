@@ -82,6 +82,9 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
 .button:disabled { background: #e4e0f5; cursor: default; }
 .button.plain { background: var(--paper); font: 700 18px/1.2 'Atkinson Hyperlegible', system-ui, sans-serif; min-height: 48px; }
 :is(.button, input):focus-visible { outline: 4px solid var(--violet); outline-offset: 2px; }
+.card-box { flex: 1 1 100%; min-width: 0; display: grid; gap: 8px; }
+#payment-element { min-height: 56px; }
+.pay.onsite.paying .field { flex-basis: 100%; }
 .note { flex: 1 1 100%; margin: 0; font-size: 16px; color: var(--ink-soft); }
 .message { flex: 1 1 100%; margin: 0; padding: 14px 18px; border-radius: 12px; font-size: 20px; font-weight: 700; background: #ffe2a8; }
 .message.good { background: #a6e36e; font-size: 22px; }
@@ -139,11 +142,15 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
       <label for="donor">Name to write on your squares (optional)</label>
       <input id="donor" type="text" maxlength="24" autocomplete="given-name">
     </div>
+    <div class="card-box" id="card-box" hidden>
+      <div class="picked-note">Card details</div>
+      <div id="payment-element"></div>
+    </div>
     <div class="field">
       <div class="picked-note" id="picked-note">No squares picked yet</div>
       <button class="button" id="donate" type="submit" disabled>Pick a square to donate</button>
     </div>
-    <p class="note">You'll pay by card on Stripe's secure checkout page, then come right back here.</p>
+    <p class="note" id="pay-note">You'll pay by card on Stripe's secure checkout page, then come right back here.</p>
     <p class="message" id="message" role="status" hidden></p>
     <a class="button" id="continue" target="_top" rel="noopener" hidden>Continue to payment</a>
   </form>
@@ -179,6 +186,29 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
 
   const state = { squares: new Map(), picked: new Set(), price: 500, busy: false, adminSquare: null };
   const cells = new Map();
+
+  // The on-page card form. Stripe draws the card fields; these settings dress them like the rest of the page.
+  const CARD_FONTS = 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap';
+  const CARD_LOOK = {
+    theme: 'flat',
+    variables: {
+      colorPrimary: '#5a3fd6', colorBackground: '#ffffff', colorText: '#2b1f5c', colorTextSecondary: '#5b5380',
+      colorTextPlaceholder: '#8a84a8', colorDanger: '#b3261e',
+      fontFamily: "'Atkinson Hyperlegible', system-ui, sans-serif", fontSizeBase: '18px',
+      borderRadius: '12px', spacingUnit: '4px',
+    },
+    rules: {
+      '.Label': { fontWeight: '700', color: '#2b1f5c' },
+      '.Input': { border: '3px solid #2b1f5c', boxShadow: 'none', padding: '14px 16px' },
+      '.Input:focus': { border: '3px solid #5a3fd6', boxShadow: '0 0 0 3px rgba(90, 63, 214, 0.25)' },
+      '.Input--invalid': { border: '3px solid #b3261e', boxShadow: 'none' },
+      '.Tab': { border: '3px solid #2b1f5c', boxShadow: 'none' },
+      '.Tab:hover': { color: '#2b1f5c' },
+      '.Tab--selected': { border: '3px solid #2b1f5c', backgroundColor: '#ffd84a', color: '#2b1f5c', boxShadow: 'none' },
+      '.Tab--selected:hover': { backgroundColor: '#ffd84a', color: '#2b1f5c' },
+    },
+  };
+  let stripe = null, elements = null, cardTried = false, cardAmount = 0;
 
   const store = {
     get() { try { return localStorage.getItem('dragon-token'); } catch { return null; } },
@@ -281,7 +311,13 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
     $('dragon-color').style.clipPath = `inset(${Math.round((1 - Math.min(1, (paid + n) / TOTAL)) * 100)}% 0 0 0)`;
     $('picked-note').textContent = n === 0 ? 'No squares picked yet' : n === 1 ? '1 square picked' : n + ' squares picked';
     $('donate').disabled = n === 0 || state.busy;
-    $('donate').textContent = state.busy ? 'Opening checkout…' : n === 0 ? 'Pick a square to donate' : 'Donate ' + dollars(n * state.price);
+    $('card-box').hidden = !elements || n === 0;
+    $('pay').classList.toggle('paying', !!elements && n > 0);
+    if (elements && n > 0 && cardAmount !== n * state.price) {
+      cardAmount = n * state.price;
+      elements.update({ amount: cardAmount });
+    }
+    $('donate').textContent = state.busy ? (elements ? 'Paying…' : 'Opening checkout…') : n === 0 ? 'Pick a square to donate' : 'Donate ' + dollars(n * state.price);
     if (paid === TOTAL) $('board-hint').textContent = 'Every square is colored in. Thank you!';
 
     if (adminMode) {
@@ -310,8 +346,72 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
       document.title = `${data.name}'s Fill My Dragon fundraiser`;
       $('why').textContent = data.purpose;
       $('why').hidden = !data.purpose;
+      if (data.stripeKey) setUpCard(data.stripeKey);
       render();
     } catch { /* keep showing the last board we had */ }
+  }
+
+  // Load Stripe's card form into the page. If anything goes wrong we quietly keep
+  // the old way: sending the donor to Stripe's own checkout page.
+  async function setUpCard(key) {
+    if (cardTried || adminMode || window.parent !== window) return;
+    cardTried = true;
+    try {
+      await new Promise((done, failed) => {
+        const tag = document.createElement('script');
+        tag.src = 'https://js.stripe.com/endive/stripe.js';
+        tag.onload = done;
+        tag.onerror = failed;
+        document.head.append(tag);
+      });
+      stripe = window.Stripe(key);
+      elements = stripe.elements({ mode: 'payment', amount: state.price, currency: 'usd', appearance: CARD_LOOK, fonts: [{ cssSrc: CARD_FONTS }] });
+      elements.create('payment', { layout: 'tabs' }).mount('#payment-element');
+      $('pay').classList.add('onsite');
+      $('pay-note').textContent = 'Your card details go straight to Stripe. This site never sees them.';
+      render();
+    } catch {
+      stripe = elements = null;
+    }
+  }
+
+  function failed(result) {
+    state.busy = false;
+    if (result.status === 409) {
+      const taken = result.data.taken || [];
+      taken.forEach((id) => state.picked.delete(id));
+      say(taken.length === 1 ? 'Someone just took one of your squares. Pick another and try again.' : 'Someone just took some of your squares. Pick others and try again.');
+      return refresh();
+    }
+    say(result.data.error || 'Could not reach the payment page. Check your connection and try again.');
+    render();
+  }
+
+  // Pay without leaving the page.
+  async function payHere() {
+    const { error: formError } = await elements.submit();
+    if (formError) { // Stripe marks the field that needs fixing
+      state.busy = false;
+      if (formError.type !== 'validation_error') say(formError.message);
+      render();
+      return;
+    }
+    let result;
+    try {
+      result = await api('api/intent', { squares: [...state.picked], name: $('donor').value });
+    } catch {
+      result = { ok: false, status: 0, data: {} };
+    }
+    if (!result.ok) return failed(result);
+    store.set(result.data.token);
+    const { error } = await stripe.confirmPayment({
+      elements,
+      clientSecret: result.data.clientSecret,
+      confirmParams: { return_url: location.origin + location.pathname + '?dragon=' + result.data.token },
+      redirect: 'if_required',
+    });
+    state.busy = false;
+    await settle(error ? error.message || 'The payment did not go through.' : '');
   }
 
   function leave(url) {
@@ -328,31 +428,20 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
     state.busy = true;
     say('');
     render();
+    if (elements) return payHere();
     let result;
     try {
       result = await api('api/checkout', { squares: [...state.picked], name: $('donor').value });
     } catch {
       result = { ok: false, status: 0, data: {} };
     }
-    if (result.ok) {
-      store.set(result.data.token);
-      leave(result.data.url);
-      return;
-    }
-    state.busy = false;
-    if (result.status === 409) {
-      const taken = result.data.taken || [];
-      taken.forEach((id) => state.picked.delete(id));
-      say(taken.length === 1 ? 'Someone just took one of your squares. Pick another and try again.' : 'Someone just took some of your squares. Pick others and try again.');
-      await refresh();
-    } else {
-      say(result.data.error || 'Could not reach the payment page. Check your connection and try again.');
-    }
-    render();
+    if (!result.ok) return failed(result);
+    store.set(result.data.token);
+    leave(result.data.url);
   });
 
-  // Coming back from Stripe: find out whether the payment went through.
-  async function settle() {
+  // After paying (or coming back from Stripe): ask the server whether the payment went through.
+  async function settle(problem) {
     const fromUrl = params.get('dragon');
     const token = fromUrl || store.get();
     if (!token) return;
@@ -363,7 +452,7 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
       store.set(null);
       $('continue').hidden = true;
       if (data.status === 'paid') say('Thank you! Your squares are colored in.', true);
-      if (data.status === 'released') say('Checkout was cancelled, so your squares are open again.');
+      if (data.status === 'released') say(problem || 'Checkout was cancelled, so your squares are open again.');
     } catch { /* the webhook will still settle it */ }
     await refresh();
   }
@@ -393,10 +482,11 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
 
   render();
   if (document.fonts) document.fonts.ready.then(render);
-  refresh().then(settle);
-  setInterval(() => { if (!document.hidden) refresh(); }, 15000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
-  window.addEventListener('pageshow', (e) => { if (e.persisted) { state.busy = false; refresh().then(settle); } });
+  refresh().then(() => settle());
+  // No refreshing mid-payment, so the donor's own squares stay picked if the card is declined.
+  setInterval(() => { if (!document.hidden && !state.busy) refresh(); }, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !state.busy) refresh(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) { state.busy = false; refresh().then(() => settle()); } });
 })();
 </script>
 </body>

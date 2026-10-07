@@ -8,12 +8,13 @@ const APP = "http://127.0.0.1:8798";
 const STRIPE_PORT = 8799;
 const WEBHOOK_SECRET = "whsec_test";
 const sessions = new Map();
+const intents = new Map();
 
 // A tiny stand-in for the three Stripe calls the worker makes.
 const fakeStripe = createServer(async (req, res) => {
   let body = "";
   for await (const chunk of req) body += chunk;
-  const send = (code, data) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(data)); };
+  const send = (code, data) => { res.writeHead(code, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }); res.end(JSON.stringify(data)); };
   const url = new URL(req.url, "http://x");
   const id = url.pathname.split("/")[4];
   if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") {
@@ -27,6 +28,25 @@ const fakeStripe = createServer(async (req, res) => {
     s.url = `http://127.0.0.1:${STRIPE_PORT}/pay/${s.id}`;
     sessions.set(s.id, s);
     return send(200, s);
+  }
+  if (url.pathname.startsWith("/v1/payment_intents") || url.pathname.startsWith("/charge/")) { // on-page card payments
+    const parts = url.pathname.split("/");
+    if (req.method === "POST" && parts.length === 3) {
+      const p = new URLSearchParams(body);
+      const pi = { id: "pi_test_" + (intents.size + 1), status: "requires_payment_method", amount: Number(p.get("amount")),
+        metadata: { token: p.get("metadata[token]"), squares: p.get("metadata[squares]"), name: p.get("metadata[name]") } };
+      pi.client_secret = pi.id + "_secret";
+      intents.set(pi.id, pi);
+      return send(200, pi);
+    }
+    const pi = intents.get(parts[1] === "charge" ? parts[2] : parts[3]);
+    if (!pi) return send(404, { error: { message: "No such payment" } });
+    if (parts[1] === "charge") pi.status = "succeeded"; // the pretend card form charges the card
+    else if (parts[4] === "cancel") {
+      if (pi.status === "succeeded") return send(400, { error: { message: "Already paid" } });
+      pi.status = "canceled";
+    }
+    return send(200, pi);
   }
   if (url.pathname.startsWith("/pay/")) { // the pretend payment page: pays, then sends the donor back
     const s = sessions.get(url.pathname.split("/")[2]);
@@ -53,6 +73,7 @@ const signed = (event) => {
   await new Promise((r) => fakeStripe.listen(STRIPE_PORT, r));
 }
 const vars = { STRIPE_SECRET_KEY: "sk_test_fake", STRIPE_API_BASE: `http://127.0.0.1:${STRIPE_PORT}`, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, ADMIN_KEY: "letmein" };
+if (process.argv.includes("--card")) vars.STRIPE_PUBLISHABLE_KEY = "pk_test_fake"; // turns on the on-page card form
 const dev = spawn("npx", ["wrangler", "dev", "--port", "8798", "--persist-to", ".wrangler/test-state-" + Date.now(), ...Object.entries(vars).flatMap(([k, v]) => ["--var", `${k}:${v}`])], { stdio: "ignore", detached: true });
 const stop = () => { try { process.kill(-dev.pid); } catch {} fakeStripe.close(); };
 process.on("exit", stop);
@@ -132,8 +153,34 @@ assert.ok(new URL(sessions.get("cs_test_5").success_url).pathname === "/addy/", 
 assert.equal(new URL(sessions.get("cs_test_1").success_url).pathname, "/", "and to / when they started there");
 await post("/addy/api/settle", { token: r.data.token });
 
+// 9. On-page card form: pay without leaving the site.
+r = await post("/api/intent", { squares: [24, 25], name: "Mimi" });
+assert.equal(r.status, 200); assert.ok(r.data.clientSecret);
+assert.equal(intents.get("pi_test_1").amount, 1000);
+assert.equal((await post("/api/intent", { squares: [25] })).status, 409, "held while the card is charged");
+await fetch(`http://127.0.0.1:${STRIPE_PORT}/charge/pi_test_1`);
+assert.equal((await post("/api/settle", { token: r.data.token })).data.status, "paid");
+assert.equal((await boardNow())[25].name, "Mimi");
+
+// 10. A declined card frees the squares and closes the payment.
+r = await post("/api/intent", { squares: [26] });
+assert.equal((await post("/api/settle", { token: r.data.token })).data.status, "released");
+assert.equal((await boardNow())[26].status, "open");
+assert.equal(intents.get("pi_test_2").status, "canceled");
+
+// 11. A card payment whose donor closes the tab is finished by the webhook.
+r = await post("/api/intent", { squares: [27], name: "Joe" });
+await post("/api/stripe-webhook", ...signed({ type: "payment_intent.succeeded", data: { object: { ...intents.get("pi_test_3"), status: "succeeded" } } }));
+assert.equal((await boardNow())[27].name, "Joe");
+r = await post("/api/intent", { squares: [28] });
+await post("/api/stripe-webhook", ...signed({ type: "payment_intent.canceled", data: { object: intents.get("pi_test_4") } }));
+assert.equal((await boardNow())[28].status, "open");
+
 // 7. Junk input is refused.
-for (const squares of [[], [0], [38], ["x"], "3", null]) assert.equal((await post("/api/checkout", { squares })).status, 400);
+for (const squares of [[], [0], [38], ["x"], "3", null]) {
+  assert.equal((await post("/api/checkout", { squares })).status, 400);
+  assert.equal((await post("/api/intent", { squares })).status, 400);
+}
 
 console.log("All checks passed.");
 process.exit(0);

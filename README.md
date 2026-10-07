@@ -10,6 +10,7 @@ It runs as one Cloudflare Worker: the page lives in `public/`, the square tracki
 2. **Stripe key**: in the Worker's Settings → Variables and Secrets, add a secret `STRIPE_SECRET_KEY` with your Stripe secret key. Start with a test key (`sk_test_...`) and pay with card `4242 4242 4242 4242`.
 3. **Stripe webhook**: in Stripe, add a webhook endpoint at `https://YOUR-WORKER-URL/api/stripe-webhook` for the events `checkout.session.completed` and `checkout.session.expired`. Add its signing secret to the Worker as `STRIPE_WEBHOOK_SECRET`. This covers donors who pay but close the tab before coming back.
 4. **Admin key**: add a secret `ADMIN_KEY` (any password you choose). It lets you mark cash donations.
+5. **Card form on the page (optional)**: add a secret `STRIPE_PUBLISHABLE_KEY` with your Stripe publishable key (`pk_test_...` or `pk_live_...`, from the same mode as the secret key). Donors then pay in a card form on the page instead of being sent to Stripe's checkout page. Also add the events `payment_intent.succeeded` and `payment_intent.canceled` to the webhook from step 3. Remove the secret to go back to Stripe's checkout page.
 
 Text and price are in the `vars` block of `wrangler.jsonc`: the name, the line saying what the money is for, and the price per square.
 
@@ -22,6 +23,8 @@ Open `https://YOUR-WORKER-URL/?admin`, enter the admin key, tap a square, type t
 The board answers at the Worker's own address and at `learys.com/addy/`. The second one comes from the `routes` and `BASE_PATH` settings in `wrangler.jsonc`; it needs `learys.com` to be in the same Cloudflare account as the Worker.
 
 ## Embedding it in another site
+
+When the board is embedded like this, donors always pay on Stripe's checkout page; the on-page card form only runs when the board is opened directly.
 
 To show the board inside a page on another site (Squarespace, for example), paste this into a Code block (needs a plan that allows JavaScript in code blocks), then set `RETURN_URL` in `wrangler.jsonc` to that page's address so donors land back on it after paying:
 
