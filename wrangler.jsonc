@@ -15,9 +15,8 @@
   // The board's own address. Cloudflare creates the DNS record and certificate for it.
   "routes": [{ "pattern": "addy.learys.com", "custom_domain": true }],
   "vars": {
+    // Name used on Stripe receipts. The words on the page itself are edited in admin mode.
     "FUNDRAISER_NAME": "Addy",
-    // One short line under the headline saying what the money is for. Leave empty to hide it.
-    "FUNDRAISER_PURPOSE": "",
     // Price of one square, in cents.
     "PRICE_CENTS": "500",
     // Where donors land after paying. Set this to the Squarespace page if the board is embedded there.

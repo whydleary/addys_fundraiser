@@ -12,11 +12,14 @@ It runs as one Cloudflare Worker: the page lives in `public/`, the square tracki
 4. **Admin key**: add a secret `ADMIN_KEY` (any password you choose). It lets you mark cash donations.
 5. **Card form on the page (optional)**: add a secret `STRIPE_PUBLISHABLE_KEY` with your Stripe publishable key (`pk_test_...` or `pk_live_...`, from the same mode as the secret key). Donors then pay in a card form on the page instead of being sent to Stripe's checkout page. Also add the events `payment_intent.succeeded` and `payment_intent.canceled` to the webhook from step 3. Remove the secret to go back to Stripe's checkout page.
 
-Text and price are in the `vars` block of `wrangler.jsonc`: the name, the line saying what the money is for, and the price per square.
+The price per square is in the `vars` block of `wrangler.jsonc`.
 
-## Cash donations
+## Admin mode
 
-Open `https://YOUR-WORKER-URL/?admin`, enter the admin key, tap a square, type the donor's name, and choose "Mark as paid". "Clear this square" undoes a mistake.
+Open the site with `?admin` on the end (for example `https://addy.learys.com/?admin`) and enter the admin key.
+
+- **Cash donations**: tap a square, type the donor's name, and choose "Mark as paid". "Clear this square" undoes a mistake.
+- **Words and photo**: under "Edit the page", change the name, headline, the line under it, and the "about" section (what the fundraiser is for, with a photo), then choose "Save changes". The "about" section and the "What is this about?" link show once the section has text or a photo.
 
 ## Address
 

@@ -176,6 +176,28 @@ r = await post("/api/intent", { squares: [28] });
 await post("/api/stripe-webhook", ...signed({ type: "payment_intent.canceled", data: { object: intents.get("pi_test_4") } }));
 assert.equal((await boardNow())[28].status, "open");
 
+// 12. The page's words and photo are edited in admin mode.
+const contentNow = async () => (await (await fetch(APP + "/api/board")).json()).content;
+let c = await contentNow();
+assert.equal(c.who, "Addy"); assert.equal(c.headline, "Fill my dragon"); assert.equal(c.aboutBody, ""); assert.equal(c.photo, "");
+r = await post("/api/admin", { key: "nope", action: "content", content: { headline: "Hacked" } });
+assert.equal(r.status, 401);
+r = await post("/api/admin", { key: "letmein", action: "content", content: { headline: "  Fill   my dragon! ", aboutBody: "Line one\r\n\r\n\r\n\r\nLine <b>two</b>", who: "", bogus: "x" } });
+assert.equal(r.status, 200);
+c = await contentNow();
+assert.equal(c.headline, "Fill my dragon!"); assert.equal(c.aboutBody, "Line one\n\nLine <b>two</b>", "text is kept as plain text");
+assert.equal(c.who, "Addy", "an emptied name falls back to the default"); assert.equal(c.bogus, undefined);
+assert.equal((await fetch(APP + "/api/photo")).status, 404);
+const tinyPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+assert.equal((await post("/api/admin", { key: "letmein", action: "photo", photo: "data:text/html;base64,PGI+" })).status, 400, "only pictures");
+assert.equal((await post("/api/admin", { key: "letmein", action: "photo", photo: "data:image/png;base64," + tinyPng })).status, 200);
+c = await contentNow();
+assert.ok(c.photo, "photo version is published");
+r = await fetch(APP + "/api/photo?v=" + c.photo);
+assert.equal(r.headers.get("content-type"), "image/png"); assert.equal((await r.arrayBuffer()).byteLength, Buffer.from(tinyPng, "base64").length);
+assert.equal((await post("/api/admin", { key: "letmein", action: "photo-remove" })).status, 200);
+assert.equal((await contentNow()).photo, "");
+
 // 7. Junk input is refused.
 for (const squares of [[], [0], [38], ["x"], "3", null]) {
   assert.equal((await post("/api/checkout", { squares })).status, 400);

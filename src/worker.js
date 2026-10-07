@@ -17,6 +17,7 @@ export class Board extends DurableObject {
       status TEXT NOT NULL DEFAULT 'open',
       name TEXT, token TEXT, session TEXT, source TEXT,
       held_until INTEGER, paid_at INTEGER)`);
+    this.sql.exec("CREATE TABLE IF NOT EXISTS content (key TEXT PRIMARY KEY, value TEXT, data BLOB)");
     if (this.sql.exec("SELECT COUNT(*) AS n FROM squares").one().n < TOTAL) {
       for (let id = 1; id <= TOTAL; id++) this.sql.exec("INSERT OR IGNORE INTO squares (id) VALUES (?)", id);
     }
@@ -85,6 +86,32 @@ export class Board extends DurableObject {
     return conflicts;
   }
 
+  // The page's editable words, and the photo for the "about" section.
+  getContent() {
+    const rows = this.sql.exec("SELECT key, value FROM content").toArray();
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  }
+
+  setContent(text) {
+    for (const [key, value] of Object.entries(text)) {
+      this.sql.exec("INSERT INTO content (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", key, value);
+    }
+  }
+
+  // The photo row's value is "type|timestamp"; the timestamp lets browsers cache each version forever.
+  setPhoto(type, data) {
+    if (!data) return void this.sql.exec("DELETE FROM content WHERE key='photo'");
+    this.sql.exec(
+      "INSERT INTO content (key, value, data) VALUES ('photo', ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, data=excluded.data",
+      `${type}|${Date.now()}`, data
+    );
+  }
+
+  getPhoto() {
+    const row = this.sql.exec("SELECT value, data FROM content WHERE key='photo'").toArray()[0];
+    return row ? { type: row.value.split("|")[0], data: row.data } : null;
+  }
+
   // For cash or check donations, and for fixing mistakes.
   admin(action, id, name) {
     if (action === "mark") {
@@ -114,6 +141,23 @@ const board = (env) => env.BOARD.get(env.BOARD.idFromName("board"));
 const priceCents = (env) => Math.max(50, parseInt(env.PRICE_CENTS, 10) || 500);
 const cleanName = (value) =>
   String(value ?? "").replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 24);
+
+// Words on the page that can be changed in admin mode, with their longest allowed length.
+const TEXT_LIMITS = { who: 30, headline: 60, lede: 200, aboutTitle: 80, aboutBody: 3000 };
+const cleanText = (value, max) =>
+  String(value ?? "").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, max);
+
+async function pageContent(env) {
+  const saved = await board(env).getContent();
+  return {
+    who: saved.who || env.FUNDRAISER_NAME || "Addy",
+    headline: saved.headline || "Fill my dragon",
+    lede: saved.lede ?? "Choose a square, donate, and help me reach my goal!",
+    aboutTitle: saved.aboutTitle ?? "What is this about?",
+    aboutBody: saved.aboutBody ?? "",
+    photo: saved.photo ? saved.photo.split("|")[1] : "",
+  };
+}
 
 function cleanIds(value) {
   if (!Array.isArray(value) || !value.length || value.length > TOTAL) return null;
@@ -307,9 +351,30 @@ async function admin(request, env) {
   if (!env.ADMIN_KEY || typeof input.key !== "string" || !sameText(input.key, env.ADMIN_KEY)) {
     return json({ error: "Wrong admin key." }, 401);
   }
+  const stub = board(env);
+  if (input.action === "content") {
+    const text = {};
+    for (const [key, max] of Object.entries(TEXT_LIMITS)) {
+      if (typeof input.content?.[key] === "string") text[key] = cleanText(input.content[key], max);
+    }
+    await stub.setContent(text);
+    return json({ ok: true });
+  }
+  if (input.action === "photo") {
+    const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(input.photo || "");
+    if (!match) return json({ error: "That file is not a picture this page can use." }, 400);
+    const bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0));
+    if (bytes.length > 1500000) return json({ error: "That picture is too large." }, 400);
+    await stub.setPhoto(match[1], bytes.buffer);
+    return json({ ok: true });
+  }
+  if (input.action === "photo-remove") {
+    await stub.setPhoto("", null);
+    return json({ ok: true });
+  }
   const ids = cleanIds([input.id]);
   if (!ids) return json({ error: "Unknown square." }, 400);
-  const ok = await board(env).admin(input.action, ids[0], cleanName(input.name) || "A friend");
+  const ok = await stub.admin(input.action, ids[0], cleanName(input.name) || "A friend");
   return ok ? json({ ok: true }) : json({ error: "Unknown action." }, 400);
 }
 
@@ -333,10 +398,16 @@ export default {
         return json({
           squares: await board(env).list(),
           priceCents: priceCents(env),
-          name: env.FUNDRAISER_NAME || "Addy",
-          purpose: env.FUNDRAISER_PURPOSE || "",
+          content: await pageContent(env),
           // Public key. When set, the page shows its own card form instead of sending donors to Stripe.
           stripeKey: env.STRIPE_PUBLISHABLE_KEY || "",
+        });
+      }
+      if (pathname === "/api/photo" && request.method === "GET") {
+        const photo = await board(env).getPhoto();
+        if (!photo) return json({ error: "No photo." }, 404);
+        return new Response(photo.data, {
+          headers: { "Content-Type": photo.type, "Cache-Control": "public, max-age=31536000, immutable" },
         });
       }
       if (request.method === "POST") {
