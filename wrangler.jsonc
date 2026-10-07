@@ -8,6 +8,8 @@
   "durable_objects": { "bindings": [{ "name": "BOARD", "class_name": "Board" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Board"] }],
   "observability": { "enabled": true },
+  // Never remove variables added in the Cloudflare dashboard (Stripe keys, admin key) when deploying.
+  "keep_vars": true,
   // Keep the workers.dev address working (Stripe's webhook points at it).
   "workers_dev": true,
   // Also serve the board at learys.com/addy. Everything else on learys.com is untouched.
