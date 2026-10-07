@@ -93,6 +93,9 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
 .donors h2 { margin: 0; font: 400 26px/1.2 var(--slab); }
 .donors p { margin: 0; font: 30px/1.3 var(--hand); color: var(--violet); }
 
+.foot { display: grid; justify-items: center; }
+.foot img { width: 220px; max-width: 60%; height: auto; }
+
 .admin-bar { display: grid; gap: 12px; padding: 20px; border: 3px dashed var(--ink); border-radius: 20px; }
 .admin-bar h2 { margin: 0; font: 400 22px/1.2 var(--slab); }
 .admin-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
@@ -172,6 +175,10 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
     <h2>Colored in so far by</h2>
     <p id="donors">Nobody yet. Be the first!</p>
   </section>
+
+  <footer class="foot">
+    <img src="theatre-rats.png" alt="Theatre Rats" width="485" height="444" loading="lazy">
+  </footer>
 </main>
 
 <script src="board.js"></script>
