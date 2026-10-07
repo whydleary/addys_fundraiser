@@ -365,7 +365,11 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
         document.head.append(tag);
       });
       stripe = window.Stripe(key);
-      elements = stripe.elements({ mode: 'payment', amount: state.price, currency: 'usd', appearance: CARD_LOOK, fonts: [{ cssSrc: CARD_FONTS }] });
+      elements = stripe.elements({
+        mode: 'payment', amount: state.price, currency: 'usd',
+        allowedPaymentMethodTypes: ['card'], // must match the server, which only takes cards
+        appearance: CARD_LOOK, fonts: [{ cssSrc: CARD_FONTS }],
+      });
       elements.create('payment', { layout: 'tabs' }).mount('#payment-element');
       $('pay').classList.add('onsite');
       $('pay-note').textContent = 'Your card details go straight to Stripe. This site never sees them.';

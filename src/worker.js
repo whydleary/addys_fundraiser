@@ -217,7 +217,8 @@ async function intent(request, env) {
     const payment = await stripe(env, "POST", "/v1/payment_intents", {
       amount: String(ids.length * priceCents(env)),
       currency: "usd",
-      "automatic_payment_methods[enabled]": "true",
+      // Cards only (Apple Pay and Google Pay count as cards). They settle at once, so a square is never left waiting on a bank.
+      "payment_method_types[0]": "card",
       description: `${env.FUNDRAISER_NAME || "Addy"}'s dragon squares ${ids.join(", ")}`,
       "metadata[token]": token,
       "metadata[squares]": ids.join(","),
