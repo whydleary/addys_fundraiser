@@ -17,11 +17,13 @@ Text and price are in the `vars` block of `wrangler.jsonc`: the name, the line s
 
 Open `https://YOUR-WORKER-URL/?admin`, enter the admin key, tap a square, type the donor's name, and choose "Mark as paid". "Clear this square" undoes a mistake.
 
-## Putting it on Squarespace
+## Address
 
-Simplest: add a button on the Squarespace page that links to the Worker URL.
+The board answers at the Worker's own address and at `learys.com/addy/`. The second one comes from the `routes` and `BASE_PATH` settings in `wrangler.jsonc`; it needs `learys.com` to be in the same Cloudflare account as the Worker.
 
-To show the board inside a Squarespace page instead, paste this into a Code block (needs a plan that allows JavaScript in code blocks), then set `RETURN_URL` in `wrangler.jsonc` to that page's address so donors land back on it after paying:
+## Embedding it in another site
+
+To show the board inside a page on another site (Squarespace, for example), paste this into a Code block (needs a plan that allows JavaScript in code blocks), then set `RETURN_URL` in `wrangler.jsonc` to that page's address so donors land back on it after paying:
 
 ```html
 <iframe id="dragon" src="https://YOUR-WORKER-URL/" title="Fill my dragon fundraiser" style="width:100%;height:1500px;border:0"></iframe>

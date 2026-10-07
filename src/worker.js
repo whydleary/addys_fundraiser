@@ -161,7 +161,7 @@ async function verifiedEvent(request, secret) {
 
 const squaresOf = (session) => cleanIds(String(session.metadata?.squares || "").split(",")) || [];
 
-async function checkout(request, env) {
+async function checkout(request, env, home) {
   if (!env.STRIPE_SECRET_KEY) return json({ error: "Payments are not set up yet." }, 503);
   const input = await request.json().catch(() => ({}));
   const ids = cleanIds(input.squares);
@@ -173,7 +173,7 @@ async function checkout(request, env) {
   const held = await stub.hold(ids, name, token);
   if (!held.ok) return json({ error: "taken", taken: held.taken }, 409);
 
-  const back = new URL(env.RETURN_URL || new URL(request.url).origin + "/");
+  const back = new URL(env.RETURN_URL || new URL(request.url).origin + home);
   back.searchParams.set("dragon", token);
   const who = env.FUNDRAISER_NAME || "Addy";
   try {
@@ -254,8 +254,19 @@ async function admin(request, env) {
 
 export default {
   async fetch(request, env) {
-    const { pathname } = new URL(request.url);
-    if (!pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
+    const url = new URL(request.url);
+    // The board also answers under a folder (BASE_PATH), e.g. learys.com/addy/.
+    const base = (env.BASE_PATH || "").replace(/\/+$/, "");
+    let pathname = url.pathname;
+    let home = "/";
+    if (base && pathname === base) return Response.redirect(`${url.origin}${base}/${url.search}`, 301);
+    if (base && pathname.startsWith(base + "/")) {
+      pathname = pathname.slice(base.length);
+      home = base + "/";
+    }
+    if (!pathname.startsWith("/api/")) {
+      return env.ASSETS.fetch(new Request(new URL(pathname + url.search, url.origin), request));
+    }
     try {
       if (pathname === "/api/board" && request.method === "GET") {
         return json({
@@ -266,7 +277,7 @@ export default {
         });
       }
       if (request.method === "POST") {
-        if (pathname === "/api/checkout") return await checkout(request, env);
+        if (pathname === "/api/checkout") return await checkout(request, env, home);
         if (pathname === "/api/settle") return await settle(request, env);
         if (pathname === "/api/stripe-webhook") return await webhook(request, env);
         if (pathname === "/api/admin") return await admin(request, env);

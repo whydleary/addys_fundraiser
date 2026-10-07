@@ -8,7 +8,16 @@
   "durable_objects": { "bindings": [{ "name": "BOARD", "class_name": "Board" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Board"] }],
   "observability": { "enabled": true },
+  // Keep the workers.dev address working (Stripe's webhook points at it).
+  "workers_dev": true,
+  // Also serve the board at learys.com/addy. Everything else on learys.com is untouched.
+  "routes": [
+    { "pattern": "learys.com/addy*", "zone_name": "learys.com" },
+    { "pattern": "www.learys.com/addy*", "zone_name": "learys.com" }
+  ],
   "vars": {
+    // The folder the board lives under on learys.com.
+    "BASE_PATH": "/addy",
     "FUNDRAISER_NAME": "Addy",
     // One short line under the headline saying what the money is for. Leave empty to hide it.
     "FUNDRAISER_PURPOSE": "",

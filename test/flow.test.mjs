@@ -121,6 +121,17 @@ assert.equal(r.status, 200); assert.equal((await boardNow())[37].name, "Mimi");
 r = await post("/api/admin", { key: "letmein", action: "clear", id: 37 });
 assert.equal((await boardNow())[37].status, "open");
 
+// 8. The board also works under the /addy folder used on learys.com.
+r = await fetch(APP + "/addy", { redirect: "manual" });
+assert.equal(r.status, 301); assert.ok(r.headers.get("location").endsWith("/addy/"));
+assert.ok((await (await fetch(APP + "/addy/")).text()).includes("Fill my dragon"), "page loads under /addy/");
+assert.ok((await (await fetch(APP + "/addy/board.js")).text()).startsWith("//"), "assets load under /addy/");
+assert.equal((await (await fetch(APP + "/addy/api/board")).json()).squares.length, 37);
+r = await post("/addy/api/checkout", { squares: [33] });
+assert.ok(new URL(sessions.get("cs_test_5").success_url).pathname === "/addy/", "donors return to /addy/");
+assert.equal(new URL(sessions.get("cs_test_1").success_url).pathname, "/", "and to / when they started there");
+await post("/addy/api/settle", { token: r.data.token });
+
 // 7. Junk input is refused.
 for (const squares of [[], [0], [38], ["x"], "3", null]) assert.equal((await post("/api/checkout", { squares })).status, 400);
 

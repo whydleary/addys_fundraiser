@@ -302,7 +302,7 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
 
   async function refresh() {
     try {
-      const { ok, data } = await api('/api/board');
+      const { ok, data } = await api('api/board');
       if (!ok) return;
       state.price = data.priceCents;
       state.squares = new Map(data.squares.map((s) => [s.id, s]));
@@ -330,7 +330,7 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
     render();
     let result;
     try {
-      result = await api('/api/checkout', { squares: [...state.picked], name: $('donor').value });
+      result = await api('api/checkout', { squares: [...state.picked], name: $('donor').value });
     } catch {
       result = { ok: false, status: 0, data: {} };
     }
@@ -358,7 +358,7 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
     if (!token) return;
     if (fromUrl) { params.delete('dragon'); history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params : '')); }
     try {
-      const { data } = await api('/api/settle', { token });
+      const { data } = await api('api/settle', { token });
       if (data.status === 'pending') { say('Your payment is still going through. Your squares are saved for you.'); return; }
       store.set(null);
       $('continue').hidden = true;
@@ -369,7 +369,7 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
   }
 
   async function adminAct(action) {
-    const { ok, data } = await api('/api/admin', { key: $('admin-key').value, action, id: state.adminSquare, name: $('admin-name').value });
+    const { ok, data } = await api('api/admin', { key: $('admin-key').value, action, id: state.adminSquare, name: $('admin-name').value });
     say(ok ? (action === 'mark' ? `Square ${state.adminSquare} marked as paid.` : `Square ${state.adminSquare} cleared.`) : data.error || 'That did not work.', ok);
     await refresh();
   }
