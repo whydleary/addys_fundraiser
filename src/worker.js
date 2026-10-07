@@ -18,6 +18,7 @@ export class Board extends DurableObject {
       name TEXT, token TEXT, session TEXT, source TEXT,
       held_until INTEGER, paid_at INTEGER)`);
     this.sql.exec("CREATE TABLE IF NOT EXISTS content (key TEXT PRIMARY KEY, value TEXT, data BLOB)");
+    this.sql.exec("CREATE TABLE IF NOT EXISTS settled (token TEXT PRIMARY KEY, at INTEGER)");
     if (this.sql.exec("SELECT COUNT(*) AS n FROM squares").one().n < TOTAL) {
       for (let id = 1; id <= TOTAL; id++) this.sql.exec("INSERT OR IGNORE INTO squares (id) VALUES (?)", id);
     }
@@ -73,6 +74,10 @@ export class Board extends DurableObject {
   // Marks squares paid. Works from the ids Stripe hands back, so a payment still lands
   // even if the hold was lost. Returns any squares someone else already paid for.
   pay(token, ids, name, session) {
+    // Each payment colors its squares in once. Stripe can report the same payment again later;
+    // that must not bring back a square that was cleared in admin mode.
+    if (this.sql.exec("SELECT 1 FROM settled WHERE token=?", token).toArray().length) return [];
+    this.sql.exec("INSERT INTO settled (token, at) VALUES (?, ?)", token, Date.now());
     const conflicts = [];
     for (const id of ids) {
       const row = this.sql.exec("SELECT status, token FROM squares WHERE id=?", id).toArray()[0];
@@ -124,6 +129,8 @@ export class Board extends DurableObject {
         "UPDATE squares SET status='paid', name=?, token=NULL, session=NULL, source='cash', held_until=NULL, paid_at=? WHERE id=?",
         name, Date.now(), id
       );
+    } else if (action === "rename") {
+      this.sql.exec("UPDATE squares SET name=? WHERE id=? AND status='paid'", name, id);
     } else if (action === "clear") {
       this.sql.exec(
         "UPDATE squares SET status='open', name=NULL, token=NULL, session=NULL, source=NULL, held_until=NULL, paid_at=NULL WHERE id=?",

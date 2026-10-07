@@ -199,6 +199,19 @@ assert.equal(r.headers.get("content-type"), "image/png"); assert.equal((await r.
 assert.equal((await post("/api/admin", { key: "letmein", action: "photo-remove" })).status, 200);
 assert.equal((await contentNow()).photo, "");
 
+// 14. A cleared square stays cleared even if Stripe reports its payment a second time.
+r = await post("/api/intent", { squares: [15], name: "Twice" });
+const twice = [...intents.values()].at(-1);
+twice.status = "succeeded";
+assert.equal((await post("/api/settle", { token: r.data.token })).data.status, "paid");
+assert.equal((await post("/api/admin", { key: "letmein", action: "rename", id: 15, name: "Renamed" })).status, 200);
+assert.equal((await boardNow())[15].name, "Renamed");
+assert.equal((await post("/api/admin", { key: "letmein", action: "clear", id: 15 })).status, 200);
+await post("/api/stripe-webhook", ...signed({ type: "payment_intent.succeeded", data: { object: twice } }));
+assert.equal((await boardNow())[15].status, "open", "a repeated payment report does not bring the square back");
+await post("/api/admin", { key: "letmein", action: "rename", id: 15, name: "Ghost" });
+assert.equal((await boardNow())[15].status, "open", "renaming never colors in an open square");
+
 // 13. Resetting the board opens every square but keeps the page's words.
 assert.ok(Object.values(await boardNow()).some((s) => s.status === "paid"));
 assert.equal((await post("/api/admin", { key: "nope", action: "reset" })).status, 401);
