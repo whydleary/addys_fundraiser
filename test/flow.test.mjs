@@ -199,6 +199,13 @@ assert.equal(r.headers.get("content-type"), "image/png"); assert.equal((await r.
 assert.equal((await post("/api/admin", { key: "letmein", action: "photo-remove" })).status, 200);
 assert.equal((await contentNow()).photo, "");
 
+// 13. Resetting the board opens every square but keeps the page's words.
+assert.ok(Object.values(await boardNow()).some((s) => s.status === "paid"));
+assert.equal((await post("/api/admin", { key: "nope", action: "reset" })).status, 401);
+assert.equal((await post("/api/admin", { key: "letmein", action: "reset" })).status, 200);
+assert.ok(Object.values(await boardNow()).every((s) => s.status === "open" && s.name === null));
+assert.equal((await contentNow()).headline, "Fill my dragon!");
+
 // 7. Junk input is refused.
 for (const squares of [[], [0], [38], ["x"], "3", null]) {
   assert.equal((await post("/api/checkout", { squares })).status, 400);

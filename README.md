@@ -19,6 +19,7 @@ The price per square is in the `vars` block of `wrangler.jsonc`.
 Open the site with `?admin` on the end (for example `https://addy.learys.com/?admin`) and enter the admin key.
 
 - **Cash donations**: tap a square, type the donor's name, and choose "Mark as paid". "Clear this square" undoes a mistake.
+- **Reset the board**: opens every square again after a second confirmation. Use it to clear test payments before going live; it cannot be undone.
 - **Words and photo**: under "Edit the page", change the name, headline, the line under it, and the "about" section (what the fundraiser is for, with a photo), then choose "Save changes". The "about" section and the "What is this about?" link show once the section has text or a photo.
 
 ## Address

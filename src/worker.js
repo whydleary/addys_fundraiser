@@ -112,6 +112,11 @@ export class Board extends DurableObject {
     return row ? { type: row.value.split("|")[0], data: row.data } : null;
   }
 
+  // Opens every square again, for clearing out test payments before going live.
+  resetSquares() {
+    this.sql.exec("UPDATE squares SET status='open', name=NULL, token=NULL, session=NULL, source=NULL, held_until=NULL, paid_at=NULL");
+  }
+
   // For cash or check donations, and for fixing mistakes.
   admin(action, id, name) {
     if (action === "mark") {
@@ -372,6 +377,10 @@ async function admin(request, env) {
   }
   if (input.action === "photo-remove") {
     await stub.setPhoto("", null);
+    return json({ ok: true });
+  }
+  if (input.action === "reset") {
+    await stub.resetSquares();
     return json({ ok: true });
   }
   const ids = cleanIds([input.id]);

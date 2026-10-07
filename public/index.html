@@ -109,6 +109,8 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
 .admin-bar h2 { margin: 0; font: 400 22px/1.2 var(--slab); }
 .admin-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .admin-row > * { flex: 1 1 200px; }
+.admin-row > .note { flex-basis: 100%; }
+.button.danger { background: #ffd0cb; }
 .admin-bar input[type=text], textarea { font: 18px/1.5 'Atkinson Hyperlegible', system-ui, sans-serif; }
 textarea { width: 100%; padding: 12px 16px; border: 3px solid var(--ink); border-radius: 12px; background: var(--paper); color: var(--ink); resize: vertical; }
 textarea:focus-visible { outline: 4px solid var(--violet); outline-offset: 2px; }
@@ -189,6 +191,12 @@ input[type=file] { font: inherit; max-width: 100%; }
     <div class="admin-row">
       <button class="button plain" id="admin-mark" type="button" disabled>Mark as paid</button>
       <button class="button plain" id="admin-clear" type="button" disabled>Clear this square</button>
+      <button class="button plain" id="admin-reset" type="button">Reset the board</button>
+    </div>
+    <div class="admin-row" id="admin-reset-confirm" hidden>
+      <p class="note">This opens every square again, paid ones included, and cannot be undone. The page's words and photo stay.</p>
+      <button class="button plain danger" id="admin-reset-yes" type="button">Yes, clear all squares</button>
+      <button class="button plain" id="admin-reset-no" type="button">Cancel</button>
     </div>
   </section>
 
@@ -609,6 +617,15 @@ input[type=file] { font: inherit; max-width: 100%; }
       await refresh();
     });
     $('admin-key').addEventListener('change', checkKey);
+    $('admin-reset').addEventListener('click', () => { $('admin-reset-confirm').hidden = false; });
+    $('admin-reset-no').addEventListener('click', () => { $('admin-reset-confirm').hidden = true; });
+    $('admin-reset-yes').addEventListener('click', async () => {
+      $('admin-reset-confirm').hidden = true;
+      const result = await adminSend({ action: 'reset' });
+      state.adminSquare = null;
+      tell('admin-key-status', result.ok ? `Board reset. All ${TOTAL} squares are open.` : 'Not reset. ' + result.why, result.ok);
+      await refresh();
+    });
     $('admin').hidden = false;
     $('pay').querySelectorAll('.field, .note, #continue').forEach((n) => { n.hidden = true; });
     $('board').classList.add('admin');
