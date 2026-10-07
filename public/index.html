@@ -370,7 +370,8 @@ input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif
         allowedPaymentMethodTypes: ['card'], // must match the server, which only takes cards
         appearance: CARD_LOOK, fonts: [{ cssSrc: CARD_FONTS }],
       });
-      elements.create('payment', { layout: 'tabs' }).mount('#payment-element');
+      // Without this, Stripe's Link adds bank and pay-later tabs and a sign-up box around the card fields.
+      elements.create('payment', { layout: 'tabs', wallets: { link: 'never' } }).mount('#payment-element');
       $('pay').classList.add('onsite');
       $('pay-note').textContent = 'Your card details go straight to Stripe. This site never sees them.';
       render();
