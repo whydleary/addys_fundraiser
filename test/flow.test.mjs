@@ -72,7 +72,7 @@ const signed = (event) => {
 {
   await new Promise((r) => fakeStripe.listen(STRIPE_PORT, r));
 }
-const vars = { STRIPE_SECRET_KEY: "sk_test_fake", STRIPE_API_BASE: `http://127.0.0.1:${STRIPE_PORT}`, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, ADMIN_KEY: "letmein" };
+const vars = { STRIPE_SECRET_KEY: "sk_test_fake", STRIPE_API_BASE: `http://127.0.0.1:${STRIPE_PORT}`, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, ADMIN_KEY: "letmein", BASE_PATH: "/addy" };
 if (process.argv.includes("--card")) vars.STRIPE_PUBLISHABLE_KEY = "pk_test_fake"; // turns on the on-page card form
 const dev = spawn("npx", ["wrangler", "dev", "--port", "8798", "--persist-to", ".wrangler/test-state-" + Date.now(), ...Object.entries(vars).flatMap(([k, v]) => ["--var", `${k}:${v}`])], { stdio: "ignore", detached: true });
 const stop = () => { try { process.kill(-dev.pid); } catch {} fakeStripe.close(); };
@@ -142,7 +142,7 @@ assert.equal(r.status, 200); assert.equal((await boardNow())[37].name, "Mimi");
 r = await post("/api/admin", { key: "letmein", action: "clear", id: 37 });
 assert.equal((await boardNow())[37].status, "open");
 
-// 8. The board also works under the /addy folder used on learys.com.
+// 8. The board also works under a folder (BASE_PATH) of another site.
 r = await fetch(APP + "/addy", { redirect: "manual" });
 assert.equal(r.status, 301); assert.ok(r.headers.get("location").endsWith("/addy/"));
 assert.ok((await (await fetch(APP + "/addy/")).text()).includes("Fill my dragon"), "page loads under /addy/");

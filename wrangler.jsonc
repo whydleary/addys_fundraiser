@@ -12,14 +12,9 @@
   "keep_vars": true,
   // Keep the workers.dev address working (Stripe's webhook points at it).
   "workers_dev": true,
-  // Also serve the board at learys.com/addy. Everything else on learys.com is untouched.
-  "routes": [
-    { "pattern": "learys.com/addy*", "zone_name": "learys.com" },
-    { "pattern": "www.learys.com/addy*", "zone_name": "learys.com" }
-  ],
+  // The board's own address. Cloudflare creates the DNS record and certificate for it.
+  "routes": [{ "pattern": "addy.learys.com", "custom_domain": true }],
   "vars": {
-    // The folder the board lives under on learys.com.
-    "BASE_PATH": "/addy",
     "FUNDRAISER_NAME": "Addy",
     // One short line under the headline saying what the money is for. Leave empty to hide it.
     "FUNDRAISER_PURPOSE": "",

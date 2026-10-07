@@ -20,7 +20,7 @@ Open `https://YOUR-WORKER-URL/?admin`, enter the admin key, tap a square, type t
 
 ## Address
 
-The board answers at the Worker's own address and at `learys.com/addy/`. The second one comes from the `routes` and `BASE_PATH` settings in `wrangler.jsonc`; it needs `learys.com` to be in the same Cloudflare account as the Worker.
+The board answers at `addy.learys.com` and at the Worker's own workers.dev address. The first comes from the `routes` setting in `wrangler.jsonc`; it needs `learys.com` to be in the same Cloudflare account as the Worker. (To serve it under a folder of another site instead, add a route for that folder and set a `BASE_PATH` variable such as `/addy`.)
 
 ## Embedding it in another site
 
