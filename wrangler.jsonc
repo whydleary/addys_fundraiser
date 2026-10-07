@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Must match the name of the Worker in your Cloudflare dashboard.
+  "name": "addys-fundraiser",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-06-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "durable_objects": { "bindings": [{ "name": "BOARD", "class_name": "Board" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Board"] }],
+  "observability": { "enabled": true },
+  "vars": {
+    "FUNDRAISER_NAME": "Addy",
+    // One short line under the headline saying what the money is for. Leave empty to hide it.
+    "FUNDRAISER_PURPOSE": "",
+    // Price of one square, in cents.
+    "PRICE_CENTS": "500",
+    // Where donors land after paying. Set this to the Squarespace page if the board is embedded there.
+    "RETURN_URL": ""
+  }
+}

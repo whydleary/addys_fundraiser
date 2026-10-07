@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Addy's Fill My Dragon fundraiser</title>
+<meta name="description" content="Choose a square, donate, and help fill the dragon.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Atkinson+Hyperlegible:wght@400;700&family=Gochi+Hand&display=swap">
+<style>
+:root {
+  --ink: #2b1f5c;
+  --ink-soft: #5b5380;
+  --violet: #5a3fd6;
+  --paper: #ffffff;
+  --wash: #f3f0ff;
+  --pick: #ffd84a;
+  --slab: 'Alfa Slab One', Rockwell, Georgia, serif;
+  --hand: 'Gochi Hand', 'Comic Sans MS', cursive;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body {
+  margin: 0; color: var(--ink); background: var(--paper);
+  font: 18px/1.5 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+[hidden] { display: none !important; }
+.page { max-width: 1120px; margin: 0 auto; padding: 32px 16px 48px; display: grid; gap: 40px; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 24px 48px; }
+.intro { flex: 1 1 320px; min-width: 0; display: grid; gap: 16px; }
+.whose { margin: 0; font: 40px/1 var(--hand); color: var(--violet); transform: rotate(-4deg); transform-origin: left bottom; }
+h1 { margin: 0; font: 400 clamp(46px, 11vw, 104px)/0.95 var(--slab); letter-spacing: -0.01em; }
+.lede { margin: 0; font-size: 22px; line-height: 1.35; max-width: 30ch; }
+.why { margin: 0; color: var(--ink-soft); max-width: 44ch; }
+.tally { margin: 8px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; font-size: 20px; }
+.tally strong { font: 400 56px/1 var(--slab); }
+.tally .soft { color: var(--ink-soft); }
+
+.dragon { flex: 1 1 280px; max-width: 480px; margin: 0 auto; position: relative; aspect-ratio: 620 / 470; }
+.dragon img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.dragon .color { clip-path: inset(100% 0 0 0); transition: clip-path 0.6s ease; }
+
+.board-area { display: grid; gap: 20px; }
+.board-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 32px; }
+.board-head p { margin: 0; font-size: 20px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; padding: 0; list-style: none; font-size: 16px; }
+.legend li { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { width: 18px; height: 18px; border: 3px solid var(--ink); border-radius: 4px; background: var(--paper); }
+.legend .is-pick { background: var(--pick); }
+.legend .is-paid { background: #7fe0cf; }
+.legend .is-held { background: repeating-linear-gradient(45deg, #d9d4ec 0 4px, #fff 4px 8px); }
+
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 12px; }
+@media (min-width: 720px) { .board { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.board svg { display: block; width: 100%; height: auto; overflow: visible; }
+.letter-ink { fill: var(--ink); }
+.cell { fill: var(--paper); cursor: pointer; outline: none; transition: fill 0.15s ease; }
+.cell.picked { fill: var(--pick); }
+.cell.held { fill: url(#held-stripes); cursor: default; }
+.cell.paid { cursor: default; }
+.cell:focus-visible { stroke: var(--violet); stroke-width: 6; stroke-linejoin: round; paint-order: stroke; }
+@media (hover: hover) { .cell.open:hover { fill: #fff3bf; } }
+.board.admin .cell { cursor: pointer; }
+.label { pointer-events: none; text-anchor: middle; dominant-baseline: central; fill: var(--ink); font: 21px var(--slab); }
+.label.name { font: 19px var(--hand); }
+
+.pay { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; padding: 24px; border: 3px solid var(--ink); border-radius: 20px; background: var(--wash); }
+.field { flex: 1 1 280px; min-width: 0; display: grid; gap: 8px; }
+.field label, .picked-note { font-weight: 700; }
+input[type=text], input[type=password] {
+  width: 100%; height: 56px; padding: 0 16px; border: 3px solid var(--ink); border-radius: 12px;
+  background: var(--paper); color: var(--ink); font: 26px var(--hand);
+}
+input[type=password] { font: 18px 'Atkinson Hyperlegible', system-ui, sans-serif; }
+.button {
+  width: 100%; min-height: 56px; padding: 8px 24px; border: 3px solid var(--ink); border-radius: 12px;
+  background: var(--pick); color: var(--ink); font: 400 24px/1.1 var(--slab); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;
+}
+.button:disabled { background: #e4e0f5; cursor: default; }
+.button.plain { background: var(--paper); font: 700 18px/1.2 'Atkinson Hyperlegible', system-ui, sans-serif; min-height: 48px; }
+:is(.button, input):focus-visible { outline: 4px solid var(--violet); outline-offset: 2px; }
+.note { flex: 1 1 100%; margin: 0; font-size: 16px; color: var(--ink-soft); }
+.message { flex: 1 1 100%; margin: 0; padding: 14px 18px; border-radius: 12px; font-size: 20px; font-weight: 700; background: #ffe2a8; }
+.message.good { background: #a6e36e; font-size: 22px; }
+
+.donors { display: grid; gap: 6px; }
+.donors h2 { margin: 0; font: 400 26px/1.2 var(--slab); }
+.donors p { margin: 0; font: 30px/1.3 var(--hand); color: var(--violet); }
+
+.admin-bar { display: grid; gap: 12px; padding: 20px; border: 3px dashed var(--ink); border-radius: 20px; }
+.admin-bar h2 { margin: 0; font: 400 22px/1.2 var(--slab); }
+.admin-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.admin-row > * { flex: 1 1 200px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <pattern id="held-stripes" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#ffffff"/><rect width="4" height="8" fill="#d9d4ec"/>
+    </pattern>
+  </defs>
+</svg>
+
+<main class="page">
+  <header class="top">
+    <div class="intro">
+      <p class="whose"><span data-who>Addy</span>'s</p>
+      <h1>Fill my dragon</h1>
+      <p class="lede">Choose a square, donate, and help me reach my goal!</p>
+      <p class="why" id="why" hidden></p>
+      <p class="tally"><strong id="raised">$0</strong> <span>raised of <span id="goal">$185</span></span> <span class="soft"><span id="left">37</span> of 37 squares left</span></p>
+    </div>
+    <div class="dragon">
+      <img src="dragon-outline.svg" alt="A cartoon dragon that colors in from the feet up as squares are filled" width="620" height="470">
+      <img class="color" id="dragon-color" src="dragon-color.svg" alt="" aria-hidden="true" width="620" height="470">
+    </div>
+  </header>
+
+  <section class="board-area" aria-label="Fundraiser squares">
+    <div class="board-head">
+      <p id="board-hint">Tap any open square to pick it. Pick as many as you like.</p>
+      <ul class="legend">
+        <li><i></i>Open</li>
+        <li><i class="is-pick"></i>Your pick</li>
+        <li><i class="is-paid"></i>Colored in</li>
+        <li><i class="is-held"></i>Being paid for</li>
+      </ul>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <form class="pay" id="pay" novalidate>
+    <div class="field">
+      <label for="donor">Name to write on your squares (optional)</label>
+      <input id="donor" type="text" maxlength="24" autocomplete="given-name">
+    </div>
+    <div class="field">
+      <div class="picked-note" id="picked-note">No squares picked yet</div>
+      <button class="button" id="donate" type="submit" disabled>Pick a square to donate</button>
+    </div>
+    <p class="note">You'll pay by card on Stripe's secure checkout page, then come right back here.</p>
+    <p class="message" id="message" role="status" hidden></p>
+    <a class="button" id="continue" target="_top" rel="noopener" hidden>Continue to payment</a>
+  </form>
+
+  <section class="admin-bar" id="admin" hidden>
+    <h2>Mark a cash donation</h2>
+    <p class="note" id="admin-hint">Enter your admin key, then tap a square.</p>
+    <div class="admin-row">
+      <div class="field"><label for="admin-key">Admin key</label><input id="admin-key" type="password" autocomplete="off"></div>
+      <div class="field"><label for="admin-name">Name for the square</label><input id="admin-name" type="text" maxlength="24"></div>
+    </div>
+    <div class="admin-row">
+      <button class="button plain" id="admin-mark" type="button" disabled>Mark as paid</button>
+      <button class="button plain" id="admin-clear" type="button" disabled>Clear this square</button>
+    </div>
+  </section>
+
+  <section class="donors">
+    <h2>Colored in so far by</h2>
+    <p id="donors">Nobody yet. Be the first!</p>
+  </section>
+</main>
+
+<script src="board.js"></script>
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const FILLS = ['#7fe0cf', '#ffbf6b', '#ff9dbb', '#b9a8ff', '#a6e36e', '#8ccbff'];
+  const TOTAL = window.BOARD.reduce((n, l) => n + l.cells.length, 0);
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const adminMode = params.has('admin');
+
+  const state = { squares: new Map(), picked: new Set(), price: 500, busy: false, adminSquare: null };
+  const cells = new Map();
+
+  const store = {
+    get() { try { return localStorage.getItem('dragon-token'); } catch { return null; } },
+    set(v) { try { v ? localStorage.setItem('dragon-token', v) : localStorage.removeItem('dragon-token'); } catch {} },
+  };
+  const dollars = (cents) => '$' + (cents % 100 ? (cents / 100).toFixed(2) : cents / 100);
+  const el = (name, attrs) => {
+    const node = document.createElementNS(NS, name);
+    for (const k in attrs) node.setAttribute(k, attrs[k]);
+    return node;
+  };
+
+  function say(text, good) {
+    const box = $('message');
+    box.textContent = text || '';
+    box.hidden = !text;
+    box.classList.toggle('good', !!good);
+  }
+
+  // Draw the six letters once; render() only restyles them.
+  for (const letter of window.BOARD) {
+    const svg = el('svg', { viewBox: '0 0 166 206', role: 'group', 'aria-label': 'Letter ' + letter.letter });
+    svg.append(el('path', { class: 'letter-ink', d: letter.ink, 'fill-rule': 'evenodd' }));
+    for (const c of letter.cells) {
+      const path = el('path', { class: 'cell open', d: c.d, tabindex: '0', role: 'button' });
+      const label = el('text', { class: 'label' });
+      path.addEventListener('click', () => tap(c.id));
+      path.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(c.id); }
+      });
+      svg.append(path, label);
+      cells.set(c.id, { path, label, c });
+    }
+    $('board').append(svg);
+  }
+
+  function tap(id) {
+    const sq = state.squares.get(id) || { status: 'open' };
+    if (adminMode) { state.adminSquare = id; render(); return; }
+    if (sq.status !== 'open' || state.busy) return;
+    state.picked.has(id) ? state.picked.delete(id) : state.picked.add(id);
+    say('');
+    render();
+  }
+
+  function render() {
+    let paid = 0;
+    const names = [];
+    for (const [id, { path, label, c }] of cells) {
+      const sq = state.squares.get(id) || { status: 'open' };
+      if (sq.status !== 'open') state.picked.delete(id);
+      const picked = state.picked.has(id);
+      const price = dollars(state.price);
+      let text = price, spoken = `Square ${id}, open, ${price}`;
+      path.setAttribute('class', 'cell ' + (picked ? 'picked' : sq.status));
+      path.style.fill = '';
+      label.setAttribute('class', 'label');
+      label.style.fontSize = '';
+      let at = [c.x, c.y];
+      if (sq.status === 'paid') {
+        paid++;
+        const name = sq.name || 'A friend';
+        if (!names.includes(name)) names.push(name);
+        path.style.fill = FILLS[id % FILLS.length];
+        label.setAttribute('class', 'label name');
+        text = name.length > 12 ? name.slice(0, 11) + '…' : name;
+        at = [c.nx, c.ny];
+        spoken = `Square ${id}, colored in by ${name}`;
+      } else if (sq.status === 'held') {
+        text = '';
+        spoken = `Square ${id}, being paid for by someone else`;
+      } else if (picked) {
+        spoken = `Square ${id}, picked, ${price}`;
+      }
+      label.textContent = text;
+      label.setAttribute('x', at[0]);
+      label.setAttribute('y', at[1]);
+      label.setAttribute('transform', sq.status === 'paid' ? '' : `rotate(-5 ${at[0]} ${at[1]})`);
+      if (sq.status === 'paid') { // shrink long names until they fit inside the square
+        const room = c.nw - 4;
+        const wide = label.getComputedTextLength();
+        if (wide > room) label.style.fontSize = Math.max(10, (19 * room) / wide).toFixed(1) + 'px';
+        while (text.length > 2 && label.getComputedTextLength() > room) { // still too long at the smallest size
+          text = text.replace(/.…?$/, '').trimEnd() + '…';
+          label.textContent = text;
+        }
+      }
+      path.setAttribute('aria-label', spoken);
+      path.setAttribute('aria-pressed', String(picked));
+      path.setAttribute('aria-disabled', String(sq.status !== 'open' && !adminMode));
+    }
+
+    const n = state.picked.size;
+    $('raised').textContent = dollars(paid * state.price);
+    $('goal').textContent = dollars(TOTAL * state.price);
+    $('left').textContent = TOTAL - paid;
+    $('donors').textContent = names.length > 1
+      ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+      : names[0] || 'Nobody yet. Be the first!';
+    $('dragon-color').style.clipPath = `inset(${Math.round((1 - Math.min(1, (paid + n) / TOTAL)) * 100)}% 0 0 0)`;
+    $('picked-note').textContent = n === 0 ? 'No squares picked yet' : n === 1 ? '1 square picked' : n + ' squares picked';
+    $('donate').disabled = n === 0 || state.busy;
+    $('donate').textContent = state.busy ? 'Opening checkout…' : n === 0 ? 'Pick a square to donate' : 'Donate ' + dollars(n * state.price);
+    if (paid === TOTAL) $('board-hint').textContent = 'Every square is colored in. Thank you!';
+
+    if (adminMode) {
+      const id = state.adminSquare;
+      const status = id ? (state.squares.get(id) || {}).status : null;
+      $('admin-hint').textContent = id ? `Square ${id} is ${status === 'held' ? 'being paid for' : status}.` : 'Enter your admin key, then tap a square.';
+      $('admin-mark').disabled = !id || status === 'paid';
+      $('admin-clear').disabled = !id || status === 'open';
+    }
+    tellParent();
+  }
+
+  async function api(path, body) {
+    const res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function refresh() {
+    try {
+      const { ok, data } = await api('/api/board');
+      if (!ok) return;
+      state.price = data.priceCents;
+      state.squares = new Map(data.squares.map((s) => [s.id, s]));
+      document.querySelectorAll('[data-who]').forEach((n) => { n.textContent = data.name; });
+      document.title = `${data.name}'s Fill My Dragon fundraiser`;
+      $('why').textContent = data.purpose;
+      $('why').hidden = !data.purpose;
+      render();
+    } catch { /* keep showing the last board we had */ }
+  }
+
+  function leave(url) {
+    const link = $('continue');
+    link.href = url;
+    try { window.top.location.href = url; } catch { link.hidden = false; }
+    // If the browser refused to leave the page, offer a plain link instead.
+    setTimeout(() => { link.hidden = false; }, 2500);
+  }
+
+  $('pay').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!state.picked.size || state.busy) return;
+    state.busy = true;
+    say('');
+    render();
+    let result;
+    try {
+      result = await api('/api/checkout', { squares: [...state.picked], name: $('donor').value });
+    } catch {
+      result = { ok: false, status: 0, data: {} };
+    }
+    if (result.ok) {
+      store.set(result.data.token);
+      leave(result.data.url);
+      return;
+    }
+    state.busy = false;
+    if (result.status === 409) {
+      const taken = result.data.taken || [];
+      taken.forEach((id) => state.picked.delete(id));
+      say(taken.length === 1 ? 'Someone just took one of your squares. Pick another and try again.' : 'Someone just took some of your squares. Pick others and try again.');
+      await refresh();
+    } else {
+      say(result.data.error || 'Could not reach the payment page. Check your connection and try again.');
+    }
+    render();
+  });
+
+  // Coming back from Stripe: find out whether the payment went through.
+  async function settle() {
+    const fromUrl = params.get('dragon');
+    const token = fromUrl || store.get();
+    if (!token) return;
+    if (fromUrl) { params.delete('dragon'); history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params : '')); }
+    try {
+      const { data } = await api('/api/settle', { token });
+      if (data.status === 'pending') { say('Your payment is still going through. Your squares are saved for you.'); return; }
+      store.set(null);
+      $('continue').hidden = true;
+      if (data.status === 'paid') say('Thank you! Your squares are colored in.', true);
+      if (data.status === 'released') say('Checkout was cancelled, so your squares are open again.');
+    } catch { /* the webhook will still settle it */ }
+    await refresh();
+  }
+
+  async function adminAct(action) {
+    const { ok, data } = await api('/api/admin', { key: $('admin-key').value, action, id: state.adminSquare, name: $('admin-name').value });
+    say(ok ? (action === 'mark' ? `Square ${state.adminSquare} marked as paid.` : `Square ${state.adminSquare} cleared.`) : data.error || 'That did not work.', ok);
+    await refresh();
+  }
+  if (adminMode) {
+    $('admin').hidden = false;
+    $('pay').querySelectorAll('.field, .note, #continue').forEach((n) => { n.hidden = true; });
+    $('board').classList.add('admin');
+    $('board-hint').textContent = 'Admin mode: tap a square to mark or clear it.';
+    $('admin-mark').addEventListener('click', () => adminAct('mark'));
+    $('admin-clear').addEventListener('click', () => adminAct('clear'));
+  }
+
+  // When embedded in another site, tell it how tall we are so the frame can fit.
+  let lastHeight = 0;
+  function tellParent() {
+    if (window.parent === window) return;
+    const h = Math.ceil(document.documentElement.scrollHeight);
+    if (h !== lastHeight) { lastHeight = h; window.parent.postMessage({ dragonHeight: h }, '*'); }
+  }
+  new ResizeObserver(tellParent).observe(document.body);
+
+  render();
+  if (document.fonts) document.fonts.ready.then(render);
+  refresh().then(settle);
+  setInterval(() => { if (!document.hidden) refresh(); }, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) { state.busy = false; refresh().then(settle); } });
+})();
+</script>
+</body>
+</html>
