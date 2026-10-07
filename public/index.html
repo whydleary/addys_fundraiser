@@ -185,6 +185,7 @@ input[type=file] { font: inherit; max-width: 100%; }
       <div class="field"><label for="admin-key">Admin key</label><input id="admin-key" type="password" autocomplete="off"></div>
       <div class="field"><label for="admin-name">Name for the square</label><input id="admin-name" type="text" maxlength="24"></div>
     </div>
+    <p class="message" id="admin-key-status" role="status" hidden></p>
     <div class="admin-row">
       <button class="button plain" id="admin-mark" type="button" disabled>Mark as paid</button>
       <button class="button plain" id="admin-clear" type="button" disabled>Clear this square</button>
@@ -206,7 +207,7 @@ input[type=file] { font: inherit; max-width: 100%; }
       <button class="button plain" id="ed-photo-remove" type="button">Remove the photo</button>
     </div>
     <button class="button" id="ed-save" type="button">Save changes</button>
-    <p class="note" id="ed-status" role="status"></p>
+    <p class="message" id="ed-status" role="status" hidden></p>
   </section>
 
   <section class="donors">
@@ -534,8 +535,8 @@ input[type=file] { font: inherit; max-width: 100%; }
   }
 
   async function adminAct(action) {
-    const { ok, data } = await api('api/admin', { key: $('admin-key').value, action, id: state.adminSquare, name: $('admin-name').value });
-    say(ok ? (action === 'mark' ? `Square ${state.adminSquare} marked as paid.` : `Square ${state.adminSquare} cleared.`) : data.error || 'That did not work.', ok);
+    const result = await adminSend({ action, id: state.adminSquare, name: $('admin-name').value });
+    tell('admin-key-status', result.ok ? (action === 'mark' ? `Square ${state.adminSquare} marked as paid.` : `Square ${state.adminSquare} cleared.`) : result.why, result.ok);
     await refresh();
   }
   // Phone photos are huge; shrink to a web-sized JPEG before sending.
@@ -556,22 +557,46 @@ input[type=file] { font: inherit; max-width: 100%; }
     }
   }
 
-  async function saveEdits() {
-    const status = $('ed-status');
+  // Show the outcome of an admin action in a box nobody can miss.
+  function tell(id, text, good) {
+    const box = $(id);
+    box.textContent = text;
+    box.hidden = !text;
+    box.classList.toggle('good', !!good);
+  }
+
+  // Every admin action goes through here, so a failure always says why.
+  async function adminSend(body) {
     const key = $('admin-key').value;
-    const send = (body) => api('api/admin', { key, ...body });
-    status.textContent = 'Saving…';
+    if (!key) return { ok: false, why: 'Type your admin key in the "Admin key" box first.' };
+    try {
+      const result = await api('api/admin', { key, ...body });
+      if (result.ok) return { ok: true };
+      return { ok: false, why: result.data.error || `The server refused this (code ${result.status}). Reload the page and try again.` };
+    } catch {
+      return { ok: false, why: 'Could not reach the server. Check your connection and try again.' };
+    }
+  }
+
+  async function checkKey() {
+    if (!$('admin-key').value) return tell('admin-key-status', '');
+    const result = await adminSend({ action: 'check' });
+    tell('admin-key-status', result.ok ? 'Admin key accepted.' : result.why, result.ok);
+  }
+
+  async function saveEdits() {
+    tell('ed-status', 'Saving…');
     const content = Object.fromEntries(EDITABLE.map((k) => [k, $('ed-' + k).value]));
-    let result = await send({ action: 'content', content });
+    let result = await adminSend({ action: 'content', content });
     const file = $('ed-photo').files[0];
     if (result.ok && file) {
       let photo;
       try { photo = await shrink(file); } catch { photo = null; }
-      if (!photo) { status.textContent = 'The words are saved, but that picture could not be read. Try a JPG or PNG.'; return refresh(); }
-      result = await send({ action: 'photo', photo });
+      if (!photo) { tell('ed-status', 'The words are saved, but that picture could not be read. Try a JPG or PNG.'); return refresh(); }
+      result = await adminSend({ action: 'photo', photo });
       if (result.ok) $('ed-photo').value = '';
     }
-    status.textContent = result.ok ? 'Saved.' : result.data.error || 'That did not save. Try again.';
+    tell('ed-status', result.ok ? 'Saved. The page now shows this to everyone.' : 'Not saved. ' + result.why, result.ok);
     await refresh();
   }
 
@@ -579,10 +604,11 @@ input[type=file] { font: inherit; max-width: 100%; }
     $('editor').hidden = false;
     $('ed-save').addEventListener('click', saveEdits);
     $('ed-photo-remove').addEventListener('click', async () => {
-      const { ok, data } = await api('api/admin', { key: $('admin-key').value, action: 'photo-remove' });
-      $('ed-status').textContent = ok ? 'Photo removed.' : data.error || 'That did not work.';
+      const result = await adminSend({ action: 'photo-remove' });
+      tell('ed-status', result.ok ? 'Photo removed.' : 'Not removed. ' + result.why, result.ok);
       await refresh();
     });
+    $('admin-key').addEventListener('change', checkKey);
     $('admin').hidden = false;
     $('pay').querySelectorAll('.field, .note, #continue').forEach((n) => { n.hidden = true; });
     $('board').classList.add('admin');

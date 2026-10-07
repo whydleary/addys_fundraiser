@@ -348,9 +348,11 @@ async function webhook(request, env) {
 
 async function admin(request, env) {
   const input = await request.json().catch(() => ({}));
-  if (!env.ADMIN_KEY || typeof input.key !== "string" || !sameText(input.key, env.ADMIN_KEY)) {
-    return json({ error: "Wrong admin key." }, 401);
+  if (!env.ADMIN_KEY) return json({ error: "No admin key is set up yet. Add a secret named ADMIN_KEY in Cloudflare." }, 503);
+  if (typeof input.key !== "string" || !sameText(input.key, env.ADMIN_KEY)) {
+    return json({ error: "That admin key is not right." }, 401);
   }
+  if (input.action === "check") return json({ ok: true });
   const stub = board(env);
   if (input.action === "content") {
     const text = {};

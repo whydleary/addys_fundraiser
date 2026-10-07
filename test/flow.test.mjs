@@ -137,6 +137,7 @@ assert.equal((await boardNow())[30].status, "open");
 // 6. Cash donations need the admin key.
 r = await post("/api/admin", { key: "nope", action: "mark", id: 37, name: "Mimi" });
 assert.equal(r.status, 401);
+assert.equal((await post("/api/admin", { key: "letmein", action: "check" })).status, 200);
 r = await post("/api/admin", { key: "letmein", action: "mark", id: 37, name: "Mimi" });
 assert.equal(r.status, 200); assert.equal((await boardNow())[37].name, "Mimi");
 r = await post("/api/admin", { key: "letmein", action: "clear", id: 37 });
